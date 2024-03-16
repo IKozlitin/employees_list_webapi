@@ -1,18 +1,20 @@
+using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
 namespace employees_list
 {
     public class Program
     {
-        static List<Employee> employees = new List<Employee>
+        /*static List<Employee> employees = new List<Employee>
         {
             new Employee { Id = Guid.NewGuid().ToString(), Name="Ivanov Ivan", Department="Development", Phone=79208887766},
             new Employee { Id = Guid.NewGuid().ToString(), Name="Petrov Petr", Department="Design", Phone=79208885544},
             new Employee { Id = Guid.NewGuid().ToString(), Name="Magomedov Magomed", Department="Test", Phone=79208883322}
-        };
+        };*/
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            builder.Services.AddDbContext<ApplicationContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));//ѕодключение к Ѕƒ
             var app = builder.Build();
 
             app.UseDefaultFiles();
@@ -31,16 +33,16 @@ namespace employees_list
 
             app.Run();
         }
-        static IResult GetAllEmployees()
+        static IResult GetAllEmployees(ApplicationContext db)
         {
             //сериализуем список пользователей в json, отправл€ем пользователю
-            return Results.Json(employees);
+            return Results.Json(db.Employees.ToList());
         }
 
-        static IResult GetEmployee(string id)
+        static IResult GetEmployee(string id, ApplicationContext db)
         {
             //ищем пользовател€ по id
-            Employee employee = employees.FirstOrDefault(e => e.Id == id);
+            Employee employee = db.Employees.FirstOrDefault(e => e.Id == id);
             //если найден
             if (employee != null)
             {
@@ -52,14 +54,15 @@ namespace employees_list
                 return Results.NotFound(new { message = "—отрудник не найден" });
             }
         }
-        static IResult DeleteEmployee(string id)
+        static IResult DeleteEmployee(string id, ApplicationContext db)
         {
             //ищем сотрудника по id
-            Employee employee = employees.FirstOrDefault(e => e.Id == id);
+            Employee employee = db.Employees.FirstOrDefault(e => e.Id == id);
             //если найден
             if (employee != null)
             {
-                employees.Remove(employee);//удал€ем сотрудника
+                db.Employees.Remove(employee);//удал€ем сотрудника
+                db.SaveChanges();
                 return Results.Json(employee);
             }
             else
@@ -69,13 +72,14 @@ namespace employees_list
             }
         }
 
-        static IResult CreateEmployee(Employee employee)
+        static IResult CreateEmployee(Employee employee, ApplicationContext db)
         {
             try
             {
                 //извлекаем из запроса отправленные от клиента данные, десериализуем в User
                 employee.Id = Guid.NewGuid().ToString();
-                employees.Add(employee);
+                db.Employees.Add(employee);
+                db.SaveChanges();
                 return Results.Json(employee);
             }
             catch (Exception ex)
@@ -83,17 +87,18 @@ namespace employees_list
                 return Results.BadRequest(new { message = ex.Message });
             }
         }
-        static IResult UpdateEmployee(Employee employeeData)
+        static IResult UpdateEmployee(Employee employeeData, ApplicationContext db)
         {
             try
             {
                 //находим "оригинального" пользовател€ по id
-                var employee = employees.FirstOrDefault(e => e.Id == employeeData.Id);
+                var employee = db.Employees.FirstOrDefault(e => e.Id == employeeData.Id);
                 if (employee != null)
                 {
                     employee.Name = employeeData.Name;
                     employee.Department = employeeData.Department;
                     employee.Phone = employeeData.Phone;
+                    db.SaveChanges();
                     return Results.Json(employee);
                 }
                 else
